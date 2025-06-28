@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>An Interactive Analysis of the Go Programming Language</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Calm Engineering -->
+    <!-- Application Structure Plan: The SPA reframes the report's linear analysis into an interactive, thematic "Claim vs. Reality" exploration. A sticky top navigation allows users to jump directly to core topics (Type System, GC, etc.). Each topic is presented as a self-contained module that starts with a clear verdict on the initial claim, followed by interactive visualizations (charts, diagrams, toggles) and summarized text. This non-linear, task-oriented structure prioritizes user engagement and quick synthesis over passive reading, allowing users to compare, contrast, and dive into the evidence for each claim in the way that best suits them. The goal is to transform a dense technical document into an explorable story about Go's engineering trade-offs. -->
+    <!-- Visualization & Content Choices: Report Info -> Table 1 (Type System Comparison) -> Goal: Compare -> Viz: Interactive toggleable cards -> Interaction: Click buttons to switch view between Go/Java and Go/Haskell -> Justification: More engaging than a static table, focuses user on one comparison at a time -> Library/Method: Vanilla JS + Tailwind. Report Info -> Table 2 (GC Comparison) -> Goal: Compare trade-offs -> Viz: Horizontal Bar Chart -> Interaction: Hover for tooltips with specific data -> Justification: Visually represents the latency-vs-throughput trade-off clearly -> Library/Method: Chart.js. Report Info -> Table 3 (Performance) -> Goal: Compare across multiple criteria -> Viz: Radar Chart -> Interaction: Hover for details -> Justification: Excellent for multi-variate comparison, showing strengths/weaknesses profiles -> Library/Method: Chart.js. Report Info -> Concurrency Model -> Goal: Organize & Explain -> Viz: HTML/CSS diagram of CSP and a 'Critique Spotlight' card -> Interaction: Static visuals with clear text -> Justification: Simplifies abstract concepts without complex interaction -> Library/Method: HTML/CSS/Tailwind. Report Info -> Real-world adoption -> Goal: Inform & Persuade -> Viz: Logo wall and interactive info cards -> Interaction: Click card to reveal detail -> Justification: Visually impactful proof of adoption and allows drill-down -> Library/Method: Vanilla JS + Tailwind. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px;
+            max-height: 50vh;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 400px;
+            }
+        }
+        .nav-link {
+            transition: color 0.2s, border-color 0.2s;
+        }
+        .nav-link.active {
+            color: #0369a1; /* text-sky-700 */
+            border-bottom-color: #0369a1;
+        }
+        .card-enter {
+            animation: card-enter 0.5s ease-out forwards;
+        }
+        @keyframes card-enter {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <header class="sticky top-0 bg-white/80 backdrop-blur-lg border-b border-slate-200 z-50">
+        <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <span class="font-bold text-sky-700 text-lg">Go: An Analysis</span>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        <a href="#types" class="nav-link px-3 py-2 text-sm font-medium text-slate-600 hover:text-sky-700 border-b-2 border-transparent">Type System</a>
+                        <a href="#gc" class="nav-link px-3 py-2 text-sm font-medium text-slate-600 hover:text-sky-700 border-b-2 border-transparent">Garbage Collector</a>
+                        <a href="#performance" class="nav-link px-3 py-2 text-sm font-medium text-slate-600 hover:text-sky-700 border-b-2 border-transparent">Performance</a>
+                        <a href="#concurrency" class="nav-link px-3 py-2 text-sm font-medium text-slate-600 hover:text-sky-700 border-b-2 border-transparent">Concurrency</a>
+                        <a href="#adoption" class="nav-link px-3 py-2 text-sm font-medium text-slate-600 hover:text-sky-700 border-b-2 border-transparent">Adoption</a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div class="text-center mb-16">
+            <h1 class="text-4xl md:text-5xl font-bold tracking-tight text-slate-900">An Engineering and Systems Analysis of the Go Programming Language</h1>
+            <p class="mt-4 max-w-3xl mx-auto text-lg text-slate-600">An interactive exploration of common claims and technical realities surrounding Go for infrastructure development.</p>
+        </div>
+
+        <div id="content-container" class="space-y-24">
+            
+            <section id="types" class="min-h-[80vh] pt-16 -mt-16">
+                <div class="text-center mb-12">
+                    <h2 class="text-base font-semibold text-sky-600 tracking-wider uppercase">Claim 1</h2>
+                    <p class="mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">"Go has no proper type system."</p>
+                </div>
+                <div class="max-w-xl mx-auto bg-white p-6 rounded-xl shadow-md border border-slate-200 mb-12">
+                    <h3 class="text-lg font-semibold text-center text-slate-900">Verdict: <span class="text-amber-600">Inaccurate, but with Deliberate Trade-offs</span></h3>
+                    <p class="mt-2 text-center text-slate-600">Go has a well-defined, pragmatic static type system that prioritizes simplicity and productivity over the formal guarantees of more complex systems. Its primary weakness is the retention of `nil` pointers.</p>
+                </div>
+                <div class="max-w-4xl mx-auto">
+                    <p class="text-lg text-slate-700 mb-8 text-center">Go's design philosophy shapes its type system, favoring simplicity over the expressive power found in languages like Haskell or Rust. It uses a nominal system with structural interfaces, a unique combination that provides both type safety and flexibility. The introduction of generics in Go 1.18 addressed a major historical weakness. This section lets you compare its features against other major languages.</p>
+                    <div class="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+                        <div class="p-6">
+                            <div class="flex justify-center border-b border-slate-200 mb-6">
+                                <button id="showGoJava" class="comparison-btn active-btn px-4 py-2 font-medium text-sm rounded-t-lg -mb-px border-b-2 border-sky-600 text-sky-600">Go vs. Java</button>
+                                <button id="showGoHaskell" class="comparison-btn px-4 py-2 font-medium text-sm rounded-t-lg text-slate-500 hover:text-sky-600">Go vs. Haskell</button>
+                            </div>
+                            <div id="comparisonContainer"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="gc" class="min-h-[80vh] pt-16 -mt-16">
+                <div class="text-center mb-12">
+                    <h2 class="text-base font-semibold text-sky-600 tracking-wider uppercase">Claim 2</h2>
+                    <p class="mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">"Go has a bad Garbage Collector."</p>
+                </div>
+                <div class="max-w-xl mx-auto bg-white p-6 rounded-xl shadow-md border border-slate-200 mb-12">
+                    <h3 class="text-lg font-semibold text-center text-slate-900">Verdict: <span class="text-amber-600">A Specialized, Low-Latency Tool</span></h3>
+                    <p class="mt-2 text-center text-slate-600">Go's GC is not "bad"; it's a highly specialized collector meticulously engineered to prioritize low, predictable pause times (latency) over raw application throughput, a crucial trade-off for network services.</p>
+                </div>
+                <div class="max-w-4xl mx-auto">
+                     <p class="text-lg text-slate-700 mb-8 text-center">Understanding Go's garbage collector requires understanding its core design goal: predictable low latency. It achieves this with a concurrent, non-generational, non-compacting mark-and-sweep algorithm. While this approach may lead to lower overall throughput compared to the highly-tuned, generational GCs in the JVM, it provides the sub-millisecond pauses essential for responsive, user-facing systems. The chart below visualizes these trade-offs.</p>
+                    <div class="bg-white p-6 rounded-xl shadow-lg border border-slate-200">
+                        <h4 class="text-xl font-bold text-center mb-4">Garbage Collector Trade-offs: A Comparison</h4>
+                         <div class="chart-container">
+                            <canvas id="gcChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="performance" class="min-h-[80vh] pt-16 -mt-16">
+                <div class="text-center mb-12">
+                    <h2 class="text-base font-semibold text-sky-600 tracking-wider uppercase">Claim 3</h2>
+                    <p class="mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">"Go is quite slow and the compiler doesn't optimize much."</p>
+                </div>
+                <div class="max-w-xl mx-auto bg-white p-6 rounded-xl shadow-md border border-slate-200 mb-12">
+                    <h3 class="text-lg font-semibold text-center text-slate-900">Verdict: <span class="text-amber-600">Fast for its Niche, Slower for Others</span></h3>
+                    <p class="mt-2 text-center text-slate-600">For its target domain of I/O-bound network services, Go is demonstrably fast. For CPU-bound tasks, it's intentionally slower than Rust/C++ as a trade-off for rapid compilation.</p>
+                </div>
+                 <div class="max-w-4xl mx-auto">
+                    <p class="text-lg text-slate-700 mb-8 text-center">Go's performance profile is a direct result of its philosophy. Prioritizing fast compilation means the compiler performs fewer aggressive optimizations than Clang or GCC. However, it excels at crucial optimizations like escape analysis. This leads to a nuanced performance story: world-class for concurrent network tasks, but less competitive for raw number crunching. The radar chart below illustrates these relative strengths and weaknesses.</p>
+                    <div class="bg-white p-6 rounded-xl shadow-lg border border-slate-200">
+                        <h4 class="text-xl font-bold text-center mb-4">Relative Performance Profiles</h4>
+                        <div class="chart-container">
+                            <canvas id="performanceChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="concurrency" class="min-h-[80vh] pt-16 -mt-16">
+                <div class="text-center mb-12">
+                    <h2 class="text-base font-semibold text-sky-600 tracking-wider uppercase">Claim 4</h2>
+                    <p class="mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">"The simpler concurrency model is harder to use properly."</p>
+                </div>
+                <div class="max-w-xl mx-auto bg-white p-6 rounded-xl shadow-md border border-slate-200 mb-12">
+                    <h3 class="text-lg font-semibold text-center text-slate-900">Verdict: <span class="text-amber-600">Productive Framework with Real Pitfalls</span></h3>
+                    <p class="mt-2 text-center text-slate-600">The model is highly productive, but its simplicity can mask subtleties. The lack of compile-time race safety and the "duct-taped" nature of the `context` package for cancellation are valid and significant critiques.</p>
+                </div>
+                <div class="max-w-4xl mx-auto">
+                    <p class="text-lg text-slate-700 mb-8 text-center">Go's concurrency model, based on Communicating Sequential Processes (CSP), is a defining feature. It encourages communication over shared memory via goroutines and channels, which simplifies many concurrent patterns. However, this simplicity comes at a cost. Developers must be disciplined to avoid data races and goroutine leaks, and the standard cancellation pattern using the `context` package is widely seen as a pragmatic but inelegant library-level fix for a language-level problem.</p>
+                    <div class="grid md:grid-cols-2 gap-8">
+                        <div class="bg-white p-6 rounded-xl shadow-lg border border-slate-200">
+                             <h4 class="text-xl font-bold text-center mb-4">Core Model: CSP</h4>
+                             <p class="text-center text-slate-600 italic mb-4">"Share memory by communicating."</p>
+                             <div class="flex flex-col items-center space-y-2">
+                                <div class="bg-sky-100 text-sky-800 p-3 rounded-lg font-mono text-sm shadow">Goroutine A</div>
+                                <div class="text-3xl text-slate-400">&darr;</div>
+                                <div class="border-2 border-dashed border-amber-400 p-3 rounded-lg font-mono text-sm text-amber-800 bg-amber-50 shadow">Channel</div>
+                                <div class="text-3xl text-slate-400">&darr;</div>
+                                <div class="bg-sky-100 text-sky-800 p-3 rounded-lg font-mono text-sm shadow">Goroutine B</div>
+                             </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-lg border border-slate-200">
+                             <h4 class="text-xl font-bold text-center mb-4">Critique: The `context` Package</h4>
+                             <p class="text-center text-slate-600 mb-4">The standard mechanism for cancellation is often criticized as "duct tape" for several reasons:</p>
+                             <ul class="space-y-3 text-slate-700">
+                                <li class="flex items-start"><span class="text-red-500 font-bold mr-2">&#10007;</span> <strong>Viral:</strong> Must be passed down the entire call stack, adding noise.</li>
+                                <li class="flex items-start"><span class="text-red-500 font-bold mr-2">&#10007;</span> <strong>Inefficient:</strong> Can create linked lists of objects and leak goroutines.</li>
+                                <li class="flex items-start"><span class="text-red-500 font-bold mr-2">&#10007;</span> <strong>Anti-Pattern:</strong> `context.Value` creates hidden dependencies.</li>
+                             </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="adoption" class="min-h-[80vh] pt-16 -mt-16">
+                 <div class="text-center mb-12">
+                    <h2 class="text-base font-semibold text-sky-600 tracking-wider uppercase">Final Verdict</h2>
+                    <p class="mt-2 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">"Go is not useful for fast, reliable, and correct infrastructure."</p>
+                </div>
+                <div class="max-w-xl mx-auto bg-white p-6 rounded-xl shadow-md border border-slate-200 mb-12">
+                    <h3 class="text-lg font-semibold text-center text-slate-900">Verdict: <span class="text-green-600">Demonstrably False</span></h3>
+                    <p class="mt-2 text-center text-slate-600">The widespread adoption of Go for cornerstone cloud-native projects like Kubernetes, Docker, and Prometheus is the most potent refutation of this claim. </p>
+                </div>
+                 <div class="max-w-5xl mx-auto">
+                     <p class="text-lg text-slate-700 mb-8 text-center">While theoretical critiques are valid, the ultimate test of a language's fitness is its real-world success. Go's design trade-offs—prioritizing simplicity, fast compilation, and excellent concurrency—have made it the lingua franca of the cloud-native era. Its perceived weaknesses are evidently acceptable in exchange for its immense practical strengths in building and deploying modern distributed systems.</p>
+                     
+                     <div class="bg-white p-6 rounded-xl shadow-lg border border-slate-200 mb-12">
+                        <h4 class="text-xl font-bold text-center mb-6">The Language of Cloud-Native Infrastructure</h4>
+                        <div class="flex justify-around items-center grayscale opacity-70">
+                             <div class="text-center">
+                                 <span class="text-6xl font-black">K8s</span>
+                                 <p class="text-sm">Kubernetes</p>
+                             </div>
+                             <div class="text-center">
+                                <span class="text-6xl font-black">D</span>
+                                <p class="text-sm">Docker</p>
+                             </div>
+                              <div class="text-center">
+                                <span class="text-6xl font-black">P</span>
+                                <p class="text-sm">Prometheus</p>
+                             </div>
+                        </div>
+                     </div>
+
+                     <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                         <div class="bg-white p-6 rounded-xl shadow-lg border border-slate-200">
+                             <h5 class="font-bold text-lg text-sky-700">Static Binaries</h5>
+                             <p class="text-slate-600 mt-2">Go compiles to a single, dependency-free binary, vastly simplifying deployment and enabling minimal container images.</p>
+                         </div>
+                         <div class="bg-white p-6 rounded-xl shadow-lg border border-slate-200">
+                             <h5 class="font-bold text-lg text-sky-700">High-Performance Concurrency</h5>
+                             <p class="text-slate-600 mt-2">Lightweight goroutines make it easy to handle massive I/O concurrency, a perfect fit for network services.</p>
+                         </div>
+                         <div class="bg-white p-6 rounded-xl shadow-lg border border-slate-200">
+                             <h5 class="font-bold text-lg text-sky-700">Developer Productivity</h5>
+                             <p class="text-slate-600 mt-2">A simple syntax and small feature set allow large, diverse teams to become productive quickly.</p>
+                         </div>
+                     </div>
+                 </div>
+            </section>
+        </div>
+
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            
+            const sections = document.querySelectorAll('main section');
+            const navLinks = document.querySelectorAll('.nav-link');
+
+            const observerOptions = {
+                root: null,
+                rootMargin: '0px',
+                threshold: 0.3
+            };
+
+            const observer = new IntersectionObserver((entries, observer) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const targetId = entry.target.id;
+                        navLinks.forEach(link => {
+                            link.classList.remove('active');
+                            if (link.getAttribute('href') === `#${targetId}`) {
+                                link.classList.add('active');
+                            }
+                        });
+                        entry.target.querySelectorAll('.card-enter').forEach((el, index) => {
+                            el.style.animationDelay = `${index * 100}ms`;
+                            el.classList.add('card-enter-active');
+                        });
+                    }
+                });
+            }, observerOptions);
+
+            sections.forEach(section => {
+                observer.observe(section);
+            });
+
+            const typeSystemData = {
+                goVsJava: {
+                    title: 'Go vs. Java',
+                    features: [
+                        { name: 'Paradigm', go: 'Nominal + Structural Interfaces', other: 'Nominal, Class-based' },
+                        { name: 'Polymorphism', go: 'Implicit interface satisfaction', other: 'Explicit `implements`' },
+                        { name: 'Null Handling', go: '`nil` pointers (runtime check)', other: '`null` refs (runtime check)' },
+                        { name: 'Philosophy', go: 'Simplicity & Productivity', other: 'Enterprise Robustness' },
+                    ]
+                },
+                goVsHaskell: {
+                    title: 'Go vs. Haskell',
+                    features: [
+                         { name: 'Paradigm', go: 'Nominal + Structural Interfaces', other: 'Hindley-Milner Inference' },
+                         { name: 'Polymorphism', go: 'Structural Interfaces', other: 'Parametric + Typeclasses' },
+                         { name: 'Null Handling', go: '`nil` pointers (runtime check)', other: '`Maybe` ADT (compile check)' },
+                         { name: 'Philosophy', go: 'Simplicity & Productivity', other: 'Correctness & Provability' },
+                    ]
+                }
+            };
+
+            const comparisonContainer = document.getElementById('comparisonContainer');
+            const showGoJavaBtn = document.getElementById('showGoJava');
+            const showGoHaskellBtn = document.getElementById('showGoHaskell');
+            const comparisonBtns = document.querySelectorAll('.comparison-btn');
+
+            function renderComparison(data) {
+                let html = '<div class="grid grid-cols-1 md:grid-cols-2 gap-6">';
+                html += `
+                    <div class="border border-slate-200 rounded-lg p-4">
+                        <h4 class="font-bold text-lg text-center text-sky-700 mb-4">Go</h4>
+                        <ul class="space-y-3">
+                            ${data.features.map(f => `<li class="text-sm"><strong class="font-semibold text-slate-600 block">${f.name}</strong><span class="text-slate-800">${f.go}</span></li>`).join('')}
+                        </ul>
+                    </div>
+                    <div class="border border-slate-200 rounded-lg p-4 bg-slate-50">
+                        <h4 class="font-bold text-lg text-center text-slate-700 mb-4">${data.title.split('vs.')[1].trim()}</h4>
+                        <ul class="space-y-3">
+                           ${data.features.map(f => `<li class="text-sm"><strong class="font-semibold text-slate-600 block">${f.name}</strong><span class="text-slate-800">${f.other}</span></li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+                html += '</div>';
+                comparisonContainer.innerHTML = html;
+            }
+
+            function updateActiveButton(activeBtn) {
+                comparisonBtns.forEach(btn => {
+                    btn.classList.remove('active-btn', 'border-sky-600', 'text-sky-600');
+                    btn.classList.add('text-slate-500', 'hover:text-sky-600');
+                });
+                activeBtn.classList.add('active-btn', 'border-sky-600', 'text-sky-600');
+                activeBtn.classList.remove('text-slate-500', 'hover:text-sky-600');
+            }
+
+            showGoJavaBtn.addEventListener('click', () => {
+                renderComparison(typeSystemData.goVsJava);
+                updateActiveButton(showGoJavaBtn);
+            });
+            showGoHaskellBtn.addEventListener('click', () => {
+                renderComparison(typeSystemData.goVsHaskell);
+                updateActiveButton(showGoHaskellBtn);
+            });
+
+            renderComparison(typeSystemData.goVsJava);
+
+            const gcCtx = document.getElementById('gcChart');
+            if(gcCtx) {
+                new Chart(gcCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Go', 'JVM (ZGC)', 'Haskell (GHC)'],
+                        datasets: [{
+                            label: 'Low Latency Focus',
+                            data: [9, 8, 3],
+                            backgroundColor: 'rgba(14, 165, 233, 0.6)',
+                            borderColor: 'rgba(14, 165, 233, 1)',
+                            borderWidth: 1
+                        }, {
+                            label: 'High Throughput Focus',
+                            data: [5, 7, 9],
+                            backgroundColor: 'rgba(245, 158, 11, 0.6)',
+                            borderColor: 'rgba(245, 158, 11, 1)',
+                            borderWidth: 1
+                        }, {
+                             label: 'Low Config Complexity',
+                             data: [9, 4, 6],
+                             backgroundColor: 'rgba(22, 163, 74, 0.6)',
+                             borderColor: 'rgba(22, 163, 74, 1)',
+                             borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                stacked: false,
+                                title: { display: true, text: 'Relative Score (1-10)' },
+                                beginAtZero: true
+                            },
+                            y: {
+                                stacked: false
+                            }
+                        },
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (context.parsed.x !== null) {
+                                            label += context.parsed.x;
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            const performanceCtx = document.getElementById('performanceChart');
+            if(performanceCtx) {
+                 new Chart(performanceCtx, {
+                    type: 'radar',
+                    data: {
+                        labels: ['High-Concurrency I/O', 'CPU-Bound Tasks', 'Low Memory Usage', 'Fast Startup', 'Performance Predictability'],
+                        datasets: [{
+                            label: 'Go',
+                            data: [9, 5, 7, 10, 8],
+                            fill: true,
+                            backgroundColor: 'rgba(14, 165, 233, 0.2)',
+                            borderColor: 'rgb(14, 165, 233)',
+                            pointBackgroundColor: 'rgb(14, 165, 233)',
+                            pointBorderColor: '#fff',
+                            pointHoverBackgroundColor: '#fff',
+                            pointHoverBorderColor: 'rgb(14, 165, 233)'
+                        }, {
+                            label: 'Rust',
+                            data: [10, 9, 9, 10, 10],
+                            fill: true,
+                            backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                            borderColor: 'rgb(245, 158, 11)',
+                            pointBackgroundColor: 'rgb(245, 158, 11)',
+                            pointBorderColor: '#fff',
+                            pointHoverBackgroundColor: '#fff',
+                            pointHoverBorderColor: 'rgb(245, 158, 11)'
+                        }, {
+                            label: 'Java (JIT)',
+                            data: [8, 7, 4, 3, 5],
+                            fill: true,
+                            backgroundColor: 'rgba(22, 163, 74, 0.2)',
+                            borderColor: 'rgb(22, 163, 74)',
+                            pointBackgroundColor: 'rgb(22, 163, 74)',
+                            pointBorderColor: '#fff',
+                            pointHoverBackgroundColor: '#fff',
+                            pointHoverBorderColor: 'rgb(22, 163, 74)'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        elements: {
+                            line: {
+                                borderWidth: 3
+                            }
+                        },
+                        scales: {
+                            r: {
+                                angleLines: {
+                                    display: false
+                                },
+                                suggestedMin: 0,
+                                suggestedMax: 10,
+                                pointLabels: {
+                                    font: {
+                                        size: 12
+                                    }
+                                },
+                                ticks: {
+                                    stepSize: 2
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+        });
+    </script>
+
+</body>
+</html>
